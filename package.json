@@ -1,0 +1,20 @@
+{
+  "name": "stacks-pwa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stacks — installable book-triage PWA (camera, local storage, swipe to sort).",
+  "license": "MIT",
+  "scripts": {
+    "build": "esbuild src/main.jsx --bundle --minify --format=esm --jsx=automatic --loader:.jsx=jsx --outfile=dist/app.js",
+    "watch": "npm run build -- --watch",
+    "serve": "npx --yes http-server dist -p 5173 -c-1"
+  },
+  "dependencies": {
+    "jsdom": "^30.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0"
+  }
+}

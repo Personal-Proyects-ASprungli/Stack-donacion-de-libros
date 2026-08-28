@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#22271f"/>
+  <g>
+    <!-- three catalog cards, fanned -->
+    <g transform="rotate(-8 256 300)">
+      <rect x="118" y="150" width="276" height="236" rx="10" fill="#d8cfb6"/>
+    </g>
+    <g transform="rotate(-3 256 290)">
+      <rect x="118" y="140" width="276" height="236" rx="10" fill="#e4ddca"/>
+    </g>
+    <rect x="118" y="128" width="276" height="236" rx="10" fill="#efe9d8"/>
+    <!-- ruled lines -->
+    <g stroke="#a9884f" stroke-opacity="0.30" stroke-width="3">
+      <line x1="142" y1="188" x2="370" y2="188"/>
+      <line x1="142" y1="222" x2="370" y2="222"/>
+      <line x1="142" y1="256" x2="370" y2="256"/>
+    </g>
+    <!-- KEEP stamp -->
+    <g transform="rotate(-11 256 300)">
+      <rect x="176" y="270" width="160" height="60" rx="8" fill="none" stroke="#2b5140" stroke-width="9"/>
+      <text x="256" y="313" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+            font-weight="800" font-size="42" letter-spacing="4" fill="#2b5140">KEEP</text>
+    </g>
+  </g>
+</svg>
