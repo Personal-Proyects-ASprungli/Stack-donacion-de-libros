@@ -32,7 +32,12 @@ file directly (`file://…`) won't grant camera access. Pick any static host:
   `npm run build` and output directory `dist` (framework preset: *Other*). Letting the
   host build means editing `src/` and pushing is enough — no chance of shipping a stale
   `dist/app.js` because you forgot to rebuild. You get an HTTPS URL instantly.
-- **GitHub Pages:** enable Pages on the `main` branch with folder `/dist`.
+- **GitHub Pages:** already wired up — `.github/workflows/deploy.yml` builds and publishes
+  on every push to `main`. Set **Settings → Pages → Source → GitHub Actions** once.
+  (Deploying straight from a branch can only serve `/` or `/docs`, never `/dist`, which is
+  why this goes through a workflow.) The site lands on a subpath,
+  `…github.io/<repo>/`; every path in the app is relative, so that works unchanged.
+  Note that Pages needs the repository to be **public** on the free plan.
 - **Local test on your phone:** `npm run serve` serves `dist/` at `http://localhost:5173`
   (localhost counts as secure). To reach it from your phone on the same Wi-Fi you'll need
   HTTPS — easiest is a quick tunnel like `npx localtunnel --port 5173` or `cloudflared tunnel`.
