@@ -28,12 +28,18 @@ package.json
 The camera (`getUserMedia`) only works over **HTTPS** or **localhost**, so opening the
 file directly (`file://…`) won't grant camera access. Pick any static host:
 
-- **Netlify / Vercel / Cloudflare Pages:** drag-and-drop the `dist/` folder, or point it
-  at this repo with output dir `dist`. You get an HTTPS URL instantly.
-- **GitHub Pages:** push `dist/` to a repo and enable Pages.
+- **Vercel / Netlify / Cloudflare Pages:** point it at this repo with build command
+  `npm run build` and output directory `dist` (framework preset: *Other*). Letting the
+  host build means editing `src/` and pushing is enough — no chance of shipping a stale
+  `dist/app.js` because you forgot to rebuild. You get an HTTPS URL instantly.
+- **GitHub Pages:** enable Pages on the `main` branch with folder `/dist`.
 - **Local test on your phone:** `npm run serve` serves `dist/` at `http://localhost:5173`
   (localhost counts as secure). To reach it from your phone on the same Wi-Fi you'll need
   HTTPS — easiest is a quick tunnel like `npx localtunnel --port 5173` or `cloudflared tunnel`.
+
+**No environment variables.** This is a pure client-side app, so anything configured on
+the host would end up readable inside the JavaScript bundle. The Gemini key belongs in the
+app's own settings, on the phone — see below.
 
 **B. Rebuild after editing source.**
 ```
@@ -41,9 +47,10 @@ npm install
 npm run build      # writes dist/app.js
 ```
 
-After redeploying, bump `CACHE` in `dist/service-worker.js` (`stacks-v2` → `stacks-v3`).
-The worker serves from cache first, so without a bump phones keep the old build one
-extra launch.
+Deploys need nothing else: the service worker fetches `index.html` and `app.js` fresh
+first, so a new build lands on the next launch on its own. It falls back to the cache the
+moment the network is slow or absent (3 s), which is what keeps the app opening instantly
+offline, and other assets are served from cache and refreshed in the background.
 
 ## Install on your phone
 
