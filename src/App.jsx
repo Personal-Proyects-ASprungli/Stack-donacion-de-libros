@@ -143,6 +143,13 @@ const EXPORT_KEYS = {
 };
 
 const DEFAULT_GEMINI_MODEL = "gemini-3.7-flash";
+/* When the chosen model is busy rather than broken, we retry it, then fall
+   back to a quieter one. Order matters: newest first, oldest-but-calmest last. */
+const FALLBACK_GEMINI_MODELS = ["gemini-3.5-flash", "gemini-2.5-flash"];
+/* Google says "try again later" with these; everything else is a real error
+   and retrying would only waste the user's time. */
+const TRANSIENT_STATUS = new Set([429, 500, 502, 503, 504]);
+const RETRY_DELAYS_MS = [700, 1800];
 const coversEnabled = () => getSetting(COVERS_KEY) !== "off";
 
 /* ---------- image handling ---------- */
@@ -271,21 +278,28 @@ function textFromInteraction(data, depth = 0) {
   return out.join("\n");
 }
 
-async function identifyWithGemini(base64, mediaType) {
-  const key = getSetting(GEMINI_KEY);
-  const model = getSetting(GEMINI_MODEL_KEY) || DEFAULT_GEMINI_MODEL;
-
-  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-    body: JSON.stringify({
-      model,
-      input: [
-        { type: "text", text: VISION_PROMPT },
-        { type: "image", mime_type: mediaType, data: base64 },
-      ],
-    }),
-  });
+/* One call, one model. Throws with .status and .transient set so the caller
+   can tell "the model is busy" apart from "your key is wrong". */
+async function callGemini(model, key, base64, mediaType) {
+  let response;
+  try {
+    response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+      body: JSON.stringify({
+        model,
+        input: [
+          { type: "text", text: VISION_PROMPT },
+          { type: "image", mime_type: mediaType, data: base64 },
+        ],
+      }),
+    });
+  } catch (netErr) {
+    /* Offline, DNS, connection dropped mid-upload — all worth retrying. */
+    const err = new Error(netErr && netErr.message ? netErr.message : "Network request failed");
+    err.transient = true;
+    throw err;
+  }
 
   let data = null;
   try { data = await response.json(); } catch {}
@@ -296,9 +310,42 @@ async function identifyWithGemini(base64, mediaType) {
       (wrapper && wrapper.error && wrapper.error.message) || `HTTP ${response.status}`;
     const err = new Error(detail);
     err.status = response.status;
+    err.transient = TRANSIENT_STATUS.has(response.status);
     throw err;
   }
   return parseBookList(textFromInteraction(data));
+}
+
+/* Retry a busy model a couple of times, then try quieter ones. A model that
+   is merely overloaded should never cost the user a manual card; a bad key
+   should fail on the first try rather than after six pointless requests.
+   `onProgress` lets the UI say what it is doing during the waits. */
+async function identifyWithGemini(base64, mediaType, onProgress) {
+  const key = getSetting(GEMINI_KEY);
+  const chosen = getSetting(GEMINI_MODEL_KEY) || DEFAULT_GEMINI_MODEL;
+  /* Never queue the same model twice if the user picked one of the fallbacks. */
+  const chain = [chosen, ...FALLBACK_GEMINI_MODELS.filter((m) => m !== chosen)];
+
+  let lastError = null;
+  for (let mi = 0; mi < chain.length; mi++) {
+    const model = chain[mi];
+    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+      try {
+        return await callGemini(model, key, base64, mediaType);
+      } catch (err) {
+        lastError = err;
+        if (!err.transient) throw err; // bad key, bad request — stop now
+        const more = attempt < RETRY_DELAYS_MS.length;
+        if (more) {
+          if (onProgress) onProgress(`${model} is busy — retrying…`);
+          await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
+        } else if (mi < chain.length - 1) {
+          if (onProgress) onProgress(`${model} is busy — trying ${chain[mi + 1]}…`);
+        }
+      }
+    }
+  }
+  throw lastError || new Error("Couldn't reach Gemini");
 }
 
 /* Your own endpoint receives { image, mediaType } and returns either
@@ -327,9 +374,9 @@ async function identifyWithEndpoint(base64, mediaType) {
   return [];
 }
 
-async function identifyBooks(base64, mediaType = "image/jpeg") {
+async function identifyBooks(base64, mediaType = "image/jpeg", onProgress) {
   const mode = identifyMode();
-  if (mode === "gemini") return await identifyWithGemini(base64, mediaType);
+  if (mode === "gemini") return await identifyWithGemini(base64, mediaType, onProgress);
   if (mode === "endpoint") return await identifyWithEndpoint(base64, mediaType);
   return []; // nothing configured → the card is still made, you type the title
 }
@@ -510,7 +557,9 @@ export default function Stacks() {
     if (apiB64 && hasIdentifyEndpoint()) {
       try {
         setScanState({ busy: true, note: "Reading the titles…" });
-        found = await identifyBooks(apiB64, apiMime);
+        found = await identifyBooks(apiB64, apiMime, (note) =>
+          setScanState({ busy: true, note })
+        );
       } catch (err) {
         console.error(err);
         identifyError = err;
@@ -566,7 +615,9 @@ export default function Stacks() {
       setEditingId(created[0].id);
       setScanState({
         busy: false,
-        note: identifyError
+        note: identifyError && identifyError.transient
+          ? "Gemini is busy everywhere right now — every model was tried. Type the title, or scan this one again in a minute."
+          : identifyError
           ? `Couldn't read the photo — ${String(identifyError.message).replace(/\.\s*$/, "")}. The card's ready, type the title.`
           : !hasIdentifyEndpoint()
           ? "Add a Gemini key under ⚙ to read titles automatically — for now, type it here."

@@ -96,6 +96,13 @@ and reads the model's words out of the `model_output` step. The reply parser is 
 markdown fences, stray prose and output truncated mid-shelf all still yield the books it
 managed to name.
 
+Popular models get busy. When Google answers "currently experiencing high demand" (or any
+other 429/5xx), Stacks retries the same model twice — 0.7 s, then 1.8 s — and only then
+walks down to `gemini-3.5-flash` and `gemini-2.5-flash`, telling you which one it is trying.
+A transient jam costs you a few seconds, never a hand-typed card. Errors that retrying
+cannot fix — a bad key, a blocked referrer, a disabled API — still fail on the first
+attempt and say so, rather than burning six pointless requests first.
+
 ### Or keep the key on a server
 
 If you'd rather not have a key on the phone at all, ⚙ → *Use my own proxy instead* takes
